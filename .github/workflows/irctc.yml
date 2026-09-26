@@ -29,21 +29,36 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v6
+      - name: Setup Python
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Setup environment and CAPTCHA solver
+      - name: Install dependencies and start CAPTCHA server
         run: |
           sudo timedatectl set-timezone Asia/Kolkata
 
           pip install -r irctc-captcha-solver/requirements.txt
 
-          # Load CAPTCHA solver models before starting Tatkal booking
-          python3 irctc-captcha-solver/app.py ""
+          # Start CAPTCHA solver server
+          python3 irctc-captcha-solver/app-server.py \
+            --host 0.0.0.0 \
+            --port 5001 &
+
+          # Give the server time to start
+          sleep 5
+
+          # Check that the CAPTCHA server process is running
+          if ! pgrep -f "app-server.py" > /dev/null; then
+            echo "CAPTCHA solver failed to start"
+            exit 1
+          fi
+
+          echo "CAPTCHA solver started successfully"
 
           PASSWORD=$(jq -r '.inputs.PASSWORD' "$GITHUB_EVENT_PATH")
           USERNAME=$(jq -r '.inputs.USERNAME' "$GITHUB_EVENT_PATH")
@@ -72,9 +87,3 @@ jobs:
             --record \
             --key "${{ secrets.CYPRESS_RECORD_KEY }}" \
             --env UPI_ID="${{ inputs.UPI_ID || '' }}",USERNAME="${{ inputs.USERNAME || secrets.USERNAME }}",PASSWORD="${{ inputs.PASSWORD || secrets.PASSWORD }}"
-
-      # Alternative:
-      # - name: Running IRCTC Cypress Script
-      #   uses: cypress-io/github-action@v6
-      #   with:
-      #     command: npx cypress run --record --key ${{ secrets.CYPRESS_RECORD_KEY }} --env UPI_ID=${{ inputs.UPI_ID || '' }},USERNAME=${{ inputs.USERNAME || secrets.USERNAME }},PASSWORD=${{ inputs.PASSWORD || secrets.PASSWORD }}
