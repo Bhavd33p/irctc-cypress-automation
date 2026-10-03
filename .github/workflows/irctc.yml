@@ -3,7 +3,7 @@ name: IRCTC Automation Booking
 on:
   push:
     branches:
-      - 'main'
+      - main
 
   pull_request:
 
@@ -29,21 +29,33 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
+      # --------------------------------------------------
+      # Checkout
+      # --------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      # --------------------------------------------------
+      # Python
+      # --------------------------------------------------
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
           python-version: '3.11'
-          cache: 'pip'
+          cache: pip
 
+      # --------------------------------------------------
+      # Install CAPTCHA solver dependencies
+      # --------------------------------------------------
       - name: Install Python dependencies
         run: |
           sudo timedatectl set-timezone Asia/Kolkata
           pip install -r irctc-captcha-solver/requirements.txt
 
-      - name: Start CAPTCHA solver
+      # --------------------------------------------------
+      # Start CAPTCHA solver
+      # --------------------------------------------------
+      - name: Start CAPTCHA server
         run: |
           python3 irctc-captcha-solver/app-server.py \
             --host 0.0.0.0 \
@@ -54,29 +66,40 @@ jobs:
           echo "Waiting for CAPTCHA server..."
 
           for i in {1..30}; do
-            if curl -sf http://localhost:5000 > /dev/null; then
+            if curl -sf http://127.0.0.1:5000 > /dev/null; then
               echo "CAPTCHA server is running on port 5000"
               break
             fi
 
             if [ "$i" -eq 30 ]; then
               echo "CAPTCHA server failed to start"
-              cat captcha-server.log
+              echo "===== CAPTCHA SERVER LOG ====="
+              cat captcha-server.log || true
               exit 1
             fi
 
             sleep 1
           done
 
+      # --------------------------------------------------
+      # Node.js
+      # --------------------------------------------------
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: '20.12.2'
+          cache: npm
 
+      # --------------------------------------------------
+      # Install Cypress / Node dependencies
+      # --------------------------------------------------
       - name: Install Node dependencies
         run: |
           npm install
 
+      # --------------------------------------------------
+      # Run Cypress
+      # --------------------------------------------------
       - name: Run IRCTC Cypress Automation
         env:
           CYPRESS_USERNAME: ${{ inputs.USERNAME || secrets.USERNAME }}
@@ -85,9 +108,12 @@ jobs:
         run: |
           npx cypress run \
             --browser chrome \
-            --headed \
-            --env "UPI_ID=${CYPRESS_UPI_ID},USERNAME=${CYPRESS_USERNAME},PASSWORD=${CYPRESS_PASSWORD}"
+            --env "UPI_ID=${CYPRESS_UPI_ID},USERNAME=${CYPRESS_USERNAME},PASSWORD=${CYPRESS_PASSWORD}" \
+            --reporter spec
 
+      # --------------------------------------------------
+      # Show CAPTCHA logs if anything fails
+      # --------------------------------------------------
       - name: Show CAPTCHA server logs on failure
         if: failure()
         run: |
