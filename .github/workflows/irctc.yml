@@ -1,89 +1,88 @@
 name: IRCTC Automation Booking
 
 on:
-  push:
-    branches:
-      - 'main'
+push:
+branches:
+- 'main'
 
-  pull_request:
+pull_request:
 
-  workflow_dispatch:
-    inputs:
-      USERNAME:
-        required: true
-        type: string
-        description: "Your IRCTC Username"
+workflow_dispatch:
+inputs:
+USERNAME:
+required: true
+type: string
+description: "Your IRCTC Username"
 
-      PASSWORD:
-        required: true
-        type: string
-        description: "Your IRCTC Password"
+  PASSWORD:
+    required: true
+    type: string
+    description: "Your IRCTC Password"
 
-      UPI_ID:
-        required: true
-        type: string
-        description: "Your UPI ID To Make Payment From"
+  UPI_ID:
+    required: true
+    type: string
+    description: "Your UPI ID To Make Payment From"
+
 
 jobs:
-  IRCTC-Booking:
-    runs-on: ubuntu-22.04
+IRCTC-Booking:
+runs-on: ubuntu-22.04
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+steps:
+  - name: Checkout repository
+    uses: actions/checkout@v5
 
-      - name: Setup Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-          cache: 'pip'
+  - name: Setup Python
+    uses: actions/setup-python@v6
+    with:
+      python-version: '3.11'
+      cache: 'pip'
 
-      - name: Install dependencies and start CAPTCHA server
-        run: |
-          sudo timedatectl set-timezone Asia/Kolkata
+  - name: Install dependencies and start CAPTCHA server
+    run: |
+      sudo timedatectl set-timezone Asia/Kolkata
 
-          pip install -r irctc-captcha-solver/requirements.txt
+      pip install -r irctc-captcha-solver/requirements.txt
 
-          # Start CAPTCHA solver server
-          python3 irctc-captcha-solver/app-server.py \
-            --host 0.0.0.0 \
-            --port 5001 &
+      # Start CAPTCHA solver server
+      python3 irctc-captcha-solver/app-server.py \
+        --host 0.0.0.0 \
+        --port 5001 &
 
-          # Give the server time to start
-          sleep 5
+      # Give the server time to start
+      sleep 5
 
-          # Check that the CAPTCHA server process is running
-          if ! pgrep -f "app-server.py" > /dev/null; then
-            echo "CAPTCHA solver failed to start"
-            exit 1
-          fi
+      # Check that the CAPTCHA server process is running
+      if ! pgrep -f "app-server.py" > /dev/null; then
+        echo "CAPTCHA solver failed to start"
+        exit 1
+      fi
 
-          echo "CAPTCHA solver started successfully"
+      echo "CAPTCHA solver started successfully"
 
-          PASSWORD=$(jq -r '.inputs.PASSWORD' "$GITHUB_EVENT_PATH")
-          USERNAME=$(jq -r '.inputs.USERNAME' "$GITHUB_EVENT_PATH")
-          UPI_ID=$(jq -r '.inputs.UPI_ID' "$GITHUB_EVENT_PATH")
+      PASSWORD=$(jq -r '.inputs.PASSWORD' "$GITHUB_EVENT_PATH")
+      USERNAME=$(jq -r '.inputs.USERNAME' "$GITHUB_EVENT_PATH")
+      UPI_ID=$(jq -r '.inputs.UPI_ID' "$GITHUB_EVENT_PATH")
 
-          echo "::add-mask::$PASSWORD"
-          echo "::add-mask::$USERNAME"
-          echo "::add-mask::$UPI_ID"
+      echo "::add-mask::$PASSWORD"
+      echo "::add-mask::$USERNAME"
+      echo "::add-mask::$UPI_ID"
 
-          echo "PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
-          echo "USERNAME=$USERNAME" >> "$GITHUB_ENV"
-          echo "UPI_ID=$UPI_ID" >> "$GITHUB_ENV"
+      echo "PASSWORD=$PASSWORD" >> "$GITHUB_ENV"
+      echo "USERNAME=$USERNAME" >> "$GITHUB_ENV"
+      echo "UPI_ID=$UPI_ID" >> "$GITHUB_ENV"
 
-      - name: Install Node.js and npm
-        uses: actions/setup-node@v6
-        with:
-          node-version: '20.12.2'
+  - name: Install Node.js and npm
+    uses: actions/setup-node@v6
+    with:
+      node-version: '20.12.2'
 
-      - name: Installing Cypress & Running IRCTC Cypress Automation
-        run: |
-          npm install cypress
+  - name: Installing Cypress & Running IRCTC Cypress Automation
+    run: |
+      npm install cypress
 
-          npx cypress run \
-            --browser chrome \
-            --headed \
-            --record \
-            --key "${{ secrets.CYPRESS_RECORD_KEY }}" \
-            --env UPI_ID="${{ inputs.UPI_ID || '' }}",USERNAME="${{ inputs.USERNAME || secrets.USERNAME }}",PASSWORD="${{ inputs.PASSWORD || secrets.PASSWORD }}"
+      npx cypress run \
+        --browser chrome \
+        --headed \
+        --env UPI_ID="${{ inputs.UPI_ID || '' }}",USERNAME="${{ inputs.USERNAME || secrets.USERNAME }}",PASSWORD="${{ inputs.PASSWORD || secrets.PASSWORD }}"
