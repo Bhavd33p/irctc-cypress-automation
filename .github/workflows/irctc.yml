@@ -54,13 +54,13 @@ jobs:
 
           echo "Waiting for CAPTCHA server..."
 
-          for i in {1..30}; do
+          for i in {1..120}; do
             if curl -sf http://127.0.0.1:5000 > /dev/null; then
               echo "CAPTCHA server is running on port 5000"
               break
             fi
 
-            if [ "$i" -eq 30 ]; then
+            if [ "$i" -eq 120 ]; then
               echo "CAPTCHA server failed to start"
               echo "===== CAPTCHA SERVER LOG ====="
               cat captcha-server.log || true
