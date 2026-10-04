@@ -10,8 +10,7 @@ import {
   TRAVEL_DATE,
   TATKAL,
   PREMIUM_TATKAL,
-  BOARDING_STATION,
-  UPI_ID_CONFIG
+  BOARDING_STATION
 } from '../fixtures/passenger_data.json'
 
 
@@ -20,20 +19,18 @@ import {
 // ================================================================
 
 Cypress.on('uncaught:exception', (err, runnable) => {
+  console.log('[IRCTC EXCEPTION]', err.message)
   return false
 })
 
 
 // ================================================================
 // DATE HELPER
-//
-// 05/10/2026 -> ["5 Oct", "05 Oct"]
-// 16/10/2026 -> ["16 Oct", "16 Oct"]
 // ================================================================
 
 function getTargetDateVariants(dateString) {
 
-  const [dayRaw, monthRaw, yearRaw] =
+  const [dayRaw, monthRaw] =
     dateString.split('/')
 
   const day = parseInt(dayRaw, 10)
@@ -73,7 +70,7 @@ function getTargetDateVariants(dateString) {
 
 
 // ================================================================
-// CHECK WHETHER AVAILABILITY CARD IS FOR TARGET DATE
+// CHECK TARGET DATE CARD
 // ================================================================
 
 function isTargetDateCard($card, dateVariants) {
@@ -97,7 +94,6 @@ function isTargetDateCard($card, dateVariants) {
 describe('IRCTC TATKAL BOOKING', () => {
 
   it('Tatkal Booking Begins......', () => {
-
 
     // ============================================================
     // CONFIG VALIDATION
@@ -139,28 +135,26 @@ describe('IRCTC TATKAL BOOKING', () => {
       )
     }
 
-
     if (TATKAL && PREMIUM_TATKAL) {
-
       throw new Error(
         'TATKAL and PREMIUM_TATKAL cannot both be true.'
       )
-
     }
 
-
     if (!TATKAL && !PREMIUM_TATKAL) {
-
       throw new Error(
         'Either TATKAL or PREMIUM_TATKAL must be true.'
       )
-
     }
 
 
     const targetDateVariants =
       getTargetDateVariants(TRAVEL_DATE)
 
+
+    // ============================================================
+    // INITIAL LOGGING
+    // ============================================================
 
     cy.task(
       'log',
@@ -214,6 +208,11 @@ describe('IRCTC TATKAL BOOKING', () => {
 
     cy.task(
       'log',
+      `PASSENGER COUNT: ${PASSENGER_DETAILS.length}`
+    )
+
+    cy.task(
+      'log',
       '================================================'
     )
 
@@ -226,7 +225,12 @@ describe('IRCTC TATKAL BOOKING', () => {
 
     cy.clearLocalStorage()
 
-    cy.viewport(1478, 1056)
+    cy.viewport(1478, 900)
+
+    cy.task(
+      'log',
+      'Cypress viewport set to 1478 x 900'
+    )
 
     cy.visit(
       'https://www.irctc.co.in/nget/train-search',
@@ -243,7 +247,41 @@ describe('IRCTC TATKAL BOOKING', () => {
 
 
     // ============================================================
-    // WAIT FOR PAGE BODY
+    // ACTUAL BROWSER SIZE
+    // ============================================================
+
+    cy.window().then((win) => {
+
+      cy.task(
+        'log',
+        `window.innerWidth = ${win.innerWidth}`
+      )
+
+      cy.task(
+        'log',
+        `window.innerHeight = ${win.innerHeight}`
+      )
+
+      cy.task(
+        'log',
+        `document.clientWidth = ${win.document.documentElement.clientWidth}`
+      )
+
+      cy.task(
+        'log',
+        `document.clientHeight = ${win.document.documentElement.clientHeight}`
+      )
+
+      cy.task(
+        'log',
+        `devicePixelRatio = ${win.devicePixelRatio}`
+      )
+
+    })
+
+
+    // ============================================================
+    // BODY
     // ============================================================
 
     cy.get(
@@ -254,11 +292,58 @@ describe('IRCTC TATKAL BOOKING', () => {
     )
       .should('exist')
 
-
     cy.task(
       'log',
       'IRCTC body loaded.........'
     )
+
+
+    // ============================================================
+    // HEADER DEBUG
+    // ============================================================
+
+    cy.get('body').then(($body) => {
+
+      cy.task(
+        'log',
+        `Desktop header count = ${
+          $body.find('.h_container').length
+        }`
+      )
+
+      cy.task(
+        'log',
+        `Mobile/small header count = ${
+          $body.find('.h_container_sm').length
+        }`
+      )
+
+      cy.task(
+        'log',
+        `Desktop login count = ${
+          $body.find(
+            'a[aria-label="Click here to Login in application"]'
+          ).length
+        }`
+      )
+
+      cy.task(
+        'log',
+        `Hamburger count = ${
+          $body.find('.h_menu_drop_button').length
+        }`
+      )
+
+      cy.task(
+        'log',
+        `Username field count = ${
+          $body.find(
+            'input[placeholder="User Name"]'
+          ).length
+        }`
+      )
+
+    })
 
 
     // ============================================================
@@ -286,7 +371,6 @@ describe('IRCTC TATKAL BOOKING', () => {
               text === 'English' &&
               Cypress.$(el).is(':visible')
             )
-
           })
 
 
@@ -297,13 +381,12 @@ describe('IRCTC TATKAL BOOKING', () => {
           'Welcome popup detected.........'
         )
 
-
         cy.wrap(
           englishButton.first()
-        ).click({
-          force: true
-        })
-
+        )
+          .click({
+            force: true
+          })
 
         cy.task(
           'log',
@@ -324,37 +407,58 @@ describe('IRCTC TATKAL BOOKING', () => {
 
     // ============================================================
     // LOGIN / REGISTER
-    //
-    // DO NOT DETECT DESKTOP/MOBILE HEADER.
-    //
-    // IRCTC uses:
-    //
-    // Desktop:
-    // <a class="search_btn loginText">
-    //
-    // Mobile:
-    // <button class="search_btn">
-    //
-    // Both contain:
-    // LOGIN / REGISTER
-    //
-    // Therefore we directly search for .search_btn + text.
     // ============================================================
+
+    cy.task(
+      'log',
+      '================================================'
+    )
 
     cy.task(
       'log',
       'Opening LOGIN / REGISTER.........'
     )
 
+    cy.task(
+      'log',
+      'Looking for desktop login selector...'
+    )
 
-    cy.contains(
-      '.search_btn',
-      'LOGIN / REGISTER',
+
+    // IMPORTANT:
+    // Use the actual desktop IRCTC login anchor.
+    //
+    // DO NOT use:
+    // cy.contains('.search_btn', 'LOGIN / REGISTER')
+    //
+    // The captured IRCTC DOM exposes:
+    // a[aria-label="Click here to Login in application"]
+
+    cy.get(
+      'a[aria-label="Click here to Login in application"]',
       {
         timeout: 60000
       }
     )
       .should('exist')
+      .then(($login) => {
+
+        cy.task(
+          'log',
+          `Desktop login element count = ${$login.length}`
+        )
+
+        cy.task(
+          'log',
+          `Desktop login visible = ${$login.is(':visible')}`
+        )
+
+        cy.task(
+          'log',
+          `Desktop login text = "${$login.text().trim()}"`
+        )
+
+      })
       .should('be.visible')
       .click({
         force: true
@@ -393,6 +497,12 @@ describe('IRCTC TATKAL BOOKING', () => {
       )
 
 
+    cy.task(
+      'log',
+      'Username entered.........'
+    )
+
+
     cy.get(
       'input[placeholder="Password"]',
       {
@@ -411,7 +521,7 @@ describe('IRCTC TATKAL BOOKING', () => {
 
     cy.task(
       'log',
-      'Username and password entered.........'
+      'Password entered.........'
     )
 
 
@@ -419,7 +529,17 @@ describe('IRCTC TATKAL BOOKING', () => {
     // FIRST CAPTCHA + LOGIN
     // ============================================================
 
+    cy.task(
+      'log',
+      'Starting login captcha.........'
+    )
+
     cy.submitCaptcha().then(() => {
+
+      cy.task(
+        'log',
+        'Login captcha completed.........'
+      )
 
       cy.task(
         'log',
@@ -444,7 +564,6 @@ describe('IRCTC TATKAL BOOKING', () => {
             'Last transaction popup detected.........'
           )
 
-
           cy.contains(
             'button',
             /OK|Close/i
@@ -455,10 +574,16 @@ describe('IRCTC TATKAL BOOKING', () => {
               force: true
             })
 
-
           cy.task(
             'log',
             'Last transaction popup closed.........'
+          )
+
+        } else {
+
+          cy.task(
+            'log',
+            'Last transaction popup not present.........'
           )
 
         }
@@ -468,12 +593,16 @@ describe('IRCTC TATKAL BOOKING', () => {
 
       // ==========================================================
       // PAGE 1
-      // TRAIN SEARCH
       // ==========================================================
 
       cy.task(
         'log',
         '================================================'
+      )
+
+      cy.task(
+        'log',
+        'PAGE 1 - TRAIN SEARCH'
       )
 
       cy.task(
@@ -507,6 +636,11 @@ describe('IRCTC TATKAL BOOKING', () => {
       // ==========================================================
       // FROM
       // ==========================================================
+
+      cy.task(
+        'log',
+        `Entering source station: ${SOURCE_STATION}`
+      )
 
       cy.get(
         '#origin input',
@@ -551,6 +685,11 @@ describe('IRCTC TATKAL BOOKING', () => {
       // TO
       // ==========================================================
 
+      cy.task(
+        'log',
+        `Entering destination: ${DESTINATION_STATION}`
+      )
+
       cy.get(
         '#destination input',
         {
@@ -594,13 +733,17 @@ describe('IRCTC TATKAL BOOKING', () => {
       // JOURNEY DATE
       // ==========================================================
 
+      cy.task(
+        'log',
+        `Setting journey date: ${TRAVEL_DATE}`
+      )
+
       cy.get('body').then(($body) => {
 
         const journeyDate =
           $body.find(
             '#journeyDate input:visible'
           )
-
 
         const jDate =
           $body.find(
@@ -609,6 +752,11 @@ describe('IRCTC TATKAL BOOKING', () => {
 
 
         if (journeyDate.length > 0) {
+
+          cy.task(
+            'log',
+            'Using #journeyDate input'
+          )
 
           cy.get(
             '#journeyDate input'
@@ -621,8 +769,12 @@ describe('IRCTC TATKAL BOOKING', () => {
               TRAVEL_DATE
             )
 
-
         } else if (jDate.length > 0) {
+
+          cy.task(
+            'log',
+            'Using #jDate input'
+          )
 
           cy.get(
             '#jDate input'
@@ -634,7 +786,6 @@ describe('IRCTC TATKAL BOOKING', () => {
             .type(
               TRAVEL_DATE
             )
-
 
         } else {
 
@@ -654,10 +805,7 @@ describe('IRCTC TATKAL BOOKING', () => {
 
 
       // ==========================================================
-      // PAGE 1 CLASS
-      //
-      // IMPORTANT:
-      // KEEP ALL CLASSES.
+      // CLASS
       // ==========================================================
 
       cy.get(
@@ -680,6 +828,11 @@ describe('IRCTC TATKAL BOOKING', () => {
       // ==========================================================
 
       if (TATKAL) {
+
+        cy.task(
+          'log',
+          'Selecting TATKAL quota.........'
+        )
 
         cy.get(
           '#journeyQuota',
@@ -706,11 +859,15 @@ describe('IRCTC TATKAL BOOKING', () => {
           'log',
           'TATKAL quota selected.........'
         )
-
       }
 
 
       if (PREMIUM_TATKAL) {
+
+        cy.task(
+          'log',
+          'Selecting PREMIUM TATKAL quota.........'
+        )
 
         cy.get(
           '#journeyQuota',
@@ -737,13 +894,17 @@ describe('IRCTC TATKAL BOOKING', () => {
           'log',
           'PREMIUM TATKAL quota selected.........'
         )
-
       }
 
 
       // ==========================================================
       // SEARCH TRAINS
       // ==========================================================
+
+      cy.task(
+        'log',
+        'Clicking Search Trains.........'
+      )
 
       cy.get(
         'button.train_Search',
@@ -764,8 +925,23 @@ describe('IRCTC TATKAL BOOKING', () => {
 
       // ==========================================================
       // PAGE 2
-      // WAIT FOR TARGET TRAIN
       // ==========================================================
+
+      cy.task(
+        'log',
+        '================================================'
+      )
+
+      cy.task(
+        'log',
+        'PAGE 2 - TRAIN RESULTS'
+      )
+
+      cy.task(
+        'log',
+        `Waiting for GOA EXPRESS (${TRAIN_NO}).........`
+      )
+
 
       cy.contains(
         '.train-heading strong',
@@ -784,7 +960,7 @@ describe('IRCTC TATKAL BOOKING', () => {
 
 
       // ==========================================================
-      // TARGET TRAIN CONTAINER
+      // TARGET TRAIN
       // ==========================================================
 
       cy.get(
@@ -801,7 +977,6 @@ describe('IRCTC TATKAL BOOKING', () => {
               .replace(/\s+/g, ' ')
               .trim()
 
-
           return text.includes(
             `GOA EXPRESS (${TRAIN_NO})`
           )
@@ -817,10 +992,14 @@ describe('IRCTC TATKAL BOOKING', () => {
         .should('exist')
 
 
+      cy.task(
+        'log',
+        'Target train container identified.........'
+      )
+
+
       // ==========================================================
       // CLASS PRIORITY
-      //
-      // 1A → 2A → 3A → 3E → SL
       // ==========================================================
 
       const classPriority = [
@@ -901,6 +1080,12 @@ describe('IRCTC TATKAL BOOKING', () => {
           })
 
 
+        cy.task(
+          'log',
+          `${currentClass.code} tab clicked.........`
+        )
+
+
         cy.wait(1500)
 
 
@@ -918,6 +1103,12 @@ describe('IRCTC TATKAL BOOKING', () => {
             )
 
 
+          cy.task(
+            'log',
+            `${currentClass.code}: found ${availabilityCards.length} availability cards`
+          )
+
+
           let targetCard = null
 
 
@@ -929,6 +1120,19 @@ describe('IRCTC TATKAL BOOKING', () => {
 
             const card =
               availabilityCards[i]
+
+
+            const cardText =
+              Cypress.$(card)
+                .text()
+                .replace(/\s+/g, ' ')
+                .trim()
+
+
+            cy.task(
+              'log',
+              `${currentClass.code} card ${i}: ${cardText.substring(0, 250)}`
+            )
 
 
             if (
@@ -955,14 +1159,13 @@ describe('IRCTC TATKAL BOOKING', () => {
 
             cy.task(
               'log',
-              `${currentClass.code}: ${TRAVEL_DATE} date card not found`
+              `${currentClass.code}: ${TRAVEL_DATE} target date card NOT FOUND`
             )
 
 
             selectAvailableClass(
               index + 1
             )
-
 
             return
 
@@ -978,12 +1181,12 @@ describe('IRCTC TATKAL BOOKING', () => {
 
           cy.task(
             'log',
-            `${currentClass.code} target card: ${targetCardText}`
+            `${currentClass.code} TARGET DATE CARD: ${targetCardText}`
           )
 
 
           // ======================================================
-          // CHECK AVAILABLE
+          // CHECK AVAILABILITY
           // ======================================================
 
           const available =
@@ -998,17 +1201,12 @@ describe('IRCTC TATKAL BOOKING', () => {
                     .trim()
                     .toUpperCase()
 
-
                 return text.includes(
                   'AVAILABLE'
                 )
 
               })
 
-
-          // ======================================================
-          // AVAILABLE
-          // ======================================================
 
           if (
             available.length > 0
@@ -1028,9 +1226,21 @@ describe('IRCTC TATKAL BOOKING', () => {
               })
 
 
+            cy.task(
+              'log',
+              `${currentClass.code} target date card selected.`
+            )
+
+
             // ====================================================
             // BOOK NOW
             // ====================================================
+
+            cy.task(
+              'log',
+              `Looking for Book Now button for ${currentClass.code}...`
+            )
+
 
             cy.get(
               '@targetTrain'
@@ -1054,14 +1264,7 @@ describe('IRCTC TATKAL BOOKING', () => {
               `BOOK NOW clicked for ${currentClass.code}`
             )
 
-          }
-
-
-          // ======================================================
-          // NOT AVAILABLE
-          // ======================================================
-
-          else {
+          } else {
 
             cy.task(
               'log',
@@ -1084,12 +1287,22 @@ describe('IRCTC TATKAL BOOKING', () => {
       // START CLASS SEARCH
       // ==========================================================
 
+      cy.task(
+        'log',
+        'Starting class search: 1A → 2A → 3A → 3E → SL'
+      )
+
       selectAvailableClass(0)
 
 
       // ==========================================================
       // PASSENGER PAGE
       // ==========================================================
+
+      cy.task(
+        'log',
+        'Waiting for passenger page.........'
+      )
 
       cy.get(
         '.dull-back.train-Header',
@@ -1232,7 +1445,7 @@ describe('IRCTC TATKAL BOOKING', () => {
 
 
         // --------------------------------------------------------
-        // BERTH / SEAT
+        // BERTH
         // --------------------------------------------------------
 
         cy.get(
@@ -1243,6 +1456,12 @@ describe('IRCTC TATKAL BOOKING', () => {
           .select(
             passenger.SEAT
           )
+
+
+        cy.task(
+          'log',
+          `Passenger ${i + 1} completed.........`
+        )
 
       }
 
@@ -1259,8 +1478,18 @@ describe('IRCTC TATKAL BOOKING', () => {
           'select[formcontrolname="passengerFoodChoice"]'
 
 
+        const foodCount =
+          $body.find(foodSelector).length
+
+
+        cy.task(
+          'log',
+          `Food dropdown count: ${foodCount}`
+        )
+
+
         if (
-          $body.find(foodSelector).length > 0
+          foodCount > 0
         ) {
 
           PASSENGER_DETAILS.forEach(
@@ -1304,7 +1533,6 @@ describe('IRCTC TATKAL BOOKING', () => {
         'body'
       ).then(($body) => {
 
-
         if (
           $body.text().includes(
             'Book only if confirm berths are allotted'
@@ -1317,6 +1545,11 @@ describe('IRCTC TATKAL BOOKING', () => {
             .click({
               force: true
             })
+
+          cy.task(
+            'log',
+            'Confirm-berth-only option selected.........'
+          )
 
         }
 
@@ -1333,6 +1566,11 @@ describe('IRCTC TATKAL BOOKING', () => {
             .click({
               force: true
             })
+
+          cy.task(
+            'log',
+            'Auto-upgradation option selected.........'
+          )
 
         }
 
@@ -1342,11 +1580,19 @@ describe('IRCTC TATKAL BOOKING', () => {
       // ==========================================================
       // SELECT UPI PAYMENT METHOD
       //
-      // We select the payment method but DO NOT:
-      // - click Pay & Book
+      // We select the method only.
+      //
+      // DO NOT:
       // - enter UPI ID
+      // - click Pay & Book
       // - submit payment
       // ==========================================================
+
+      cy.task(
+        'log',
+        'Selecting UPI payment option.........'
+      )
+
 
       cy.get(
         '#\\32  > .ui-radiobutton > .ui-radiobutton-box'
@@ -1367,11 +1613,25 @@ describe('IRCTC TATKAL BOOKING', () => {
       // CONTINUE
       // ==========================================================
 
+      cy.task(
+        'log',
+        'Looking for Continue button.........'
+      )
+
+
       cy.get(
         '.train_Search'
       )
         .filter(':visible')
         .last()
+        .then(($button) => {
+
+          cy.task(
+            'log',
+            `Continue button text: "${$button.text().trim()}"`
+          )
+
+        })
         .click({
           force: true
         })
@@ -1397,6 +1657,12 @@ describe('IRCTC TATKAL BOOKING', () => {
           )
         ) {
 
+          cy.task(
+            'log',
+            'Food confirmation popup detected.........'
+          )
+
+
           cy.get(
             '[icon="fa fa-close"] > .ui-button-text'
           )
@@ -1412,6 +1678,13 @@ describe('IRCTC TATKAL BOOKING', () => {
             'Food confirmation popup closed.........'
           )
 
+        } else {
+
+          cy.task(
+            'log',
+            'Food confirmation popup not present.........'
+          )
+
         }
 
       })
@@ -1420,6 +1693,11 @@ describe('IRCTC TATKAL BOOKING', () => {
       // ==========================================================
       // SECOND CAPTCHA
       // ==========================================================
+
+      cy.task(
+        'log',
+        '================================================'
+      )
 
       cy.task(
         'log',
@@ -1436,11 +1714,7 @@ describe('IRCTC TATKAL BOOKING', () => {
 
 
         // ========================================================
-        // FINAL TEST STOP
-        //
-        // DO NOT CLICK PAY & BOOK.
-        // DO NOT ENTER UPI.
-        // DO NOT SUBMIT PAYMENT.
+        // FINAL STOP
         // ========================================================
 
         cy.task(
