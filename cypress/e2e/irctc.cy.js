@@ -10,340 +10,122 @@ import {
   TRAVEL_DATE,
   TATKAL,
   PREMIUM_TATKAL,
-  BOARDING_STATION
+  BOARDING_STATION,
+  UPI_ID_CONFIG
 } from '../fixtures/passenger_data.json'
 
-
-// ============================================================
-// IGNORE IRCTC FRONTEND EXCEPTIONS
-// ============================================================
 
 Cypress.on('uncaught:exception', (err, runnable) => {
   return false
 })
 
 
-// ============================================================
-// HELPERS
-// ============================================================
-
-function getTargetDateVariants(dateString) {
-
-  const parts = dateString.split('/')
-
-  if (parts.length !== 3) {
-    throw new Error(
-      `Invalid TRAVEL_DATE "${dateString}". Expected DD/MM/YYYY.`
-    )
-  }
-
-  const day = parseInt(parts[0], 10)
-  const month = parseInt(parts[1], 10)
-
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec'
-  ]
-
-  if (Number.isNaN(day) || Number.isNaN(month)) {
-    throw new Error(
-      `Invalid TRAVEL_DATE "${dateString}".`
-    )
-  }
-
-  if (month < 1 || month > 12) {
-    throw new Error(
-      `Invalid month in TRAVEL_DATE "${dateString}".`
-    )
-  }
-
-  return [
-    `${day} ${months[month - 1]}`,
-    `${String(day).padStart(2, '0')} ${months[month - 1]}`
-  ]
-}
-
-
-function normalizeText(text) {
-
-  return text
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toUpperCase()
-
-}
-
-
-function getTargetDateRegex(dateString) {
-
-  const variants = getTargetDateVariants(dateString)
-
-  const escaped = variants.map((value) => {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  })
-
-  return new RegExp(
-    `(?:${escaped.join('|')})`,
-    'i'
-  )
-
-}
-
-
-// ============================================================
-// TEST
-// ============================================================
-
 describe('IRCTC TATKAL BOOKING', () => {
 
   it('Tatkal Booking Begins......', () => {
 
-
-    // ==========================================================
-    // VALIDATE QUOTA
-    // ==========================================================
+    // ============================================================
+    // VALIDATE QUOTA CONFIG
+    // ============================================================
 
     if (TATKAL && PREMIUM_TATKAL) {
-
-      throw new Error(
+      expect(
+        false,
         'Make sure either TATKAL or PREMIUM_TATKAL is true, not both.'
-      )
-
+      ).to.be.true
     }
 
 
-    if (!TATKAL && !PREMIUM_TATKAL) {
-
-      throw new Error(
-        'Either TATKAL or PREMIUM_TATKAL must be true.'
-      )
-
-    }
-
-
-    // ==========================================================
-    // LOG CONFIG
-    // ==========================================================
-
-    const targetDateVariants =
-      getTargetDateVariants(TRAVEL_DATE)
-
-    const targetDateRegex =
-      getTargetDateRegex(TRAVEL_DATE)
-
-    cy.task(
-      'log',
-      `TARGET JOURNEY DATE: ${TRAVEL_DATE}`
-    )
-
-    cy.task(
-      'log',
-      `IRCTC DATE CARD TO SELECT: ${targetDateVariants.join(' / ')}`
-    )
-
-
-    // ==========================================================
+    // ============================================================
     // OPEN IRCTC
-    // ==========================================================
+    // ============================================================
 
     cy.clearCookies()
-
     cy.clearLocalStorage()
 
-    // Keep viewport compatible with CI.
-    // This intentionally allows IRCTC's responsive header.
+    /*
+     * Keep the AUT viewport below 1303 so that IRCTC renders
+     * the mobile/small header.
+     *
+     * We intentionally use the hamburger menu for LOGIN / REGISTER.
+     */
     cy.viewport(1280, 720)
 
-    cy.visit(
-      'https://www.irctc.co.in/nget/train-search',
-      {
-        failOnStatusCode: false,
-        timeout: 90000
-      }
-    )
-
-    cy.task(
-      'log',
-      'Website Fetching completed.........'
-    )
-
-
-    // ==========================================================
-    // WELCOME POPUP
-    // ==========================================================
-
-    cy.get('body', {
-      timeout: 30000
+    cy.visit('https://www.irctc.co.in/nget/train-search', {
+      failOnStatusCode: false,
+      timeout: 90000
     })
-      .then(($body) => {
 
-        const englishButton = $body
-          .find('button')
-          .filter((i, el) => {
+    cy.task('log', 'Website Fetching completed.........')
 
-            const text =
-              Cypress.$(el)
-                .text()
-                .trim()
 
-            return (
-              text === 'English' &&
-              Cypress.$(el).is(':visible')
-            )
+    // ============================================================
+    // WELCOME POPUP
+    // ============================================================
 
-          })
+    cy.get('body', { timeout: 30000 }).then(($body) => {
 
-        if (englishButton.length > 0) {
-
-          cy.task(
-            'log',
-            'English language popup detected.'
+      const englishButton = $body
+        .find('button')
+        .filter((i, el) => {
+          return (
+            Cypress.$(el).text().trim() === 'English' &&
+            Cypress.$(el).is(':visible')
           )
+        })
 
-          cy.wrap(
-            englishButton.first()
-          )
-            .click({
-              force: true
-            })
+      if (englishButton.length) {
+        cy.wrap(englishButton.first())
+          .click({ force: true })
+      }
 
-        } else {
-
-          cy.task(
-            'log',
-            'English already selected.........'
-          )
-
-        }
-
-      })
+    })
 
 
-    // ==========================================================
+    // ============================================================
     // LOGIN / REGISTER
-    //
-    // Supports:
-    //
-    // 1. Desktop:
-    //    LOGIN / REGISTER directly visible
-    //
-    // 2. Responsive:
-    //    Hamburger menu
-    //        ↓
-    //    LOGIN / REGISTER
-    // ==========================================================
+    // MOBILE HEADER -> HAMBURGER -> LOGIN / REGISTER
+    // ============================================================
 
     cy.task(
       'log',
       'Opening LOGIN / REGISTER.........'
     )
 
-
-    cy.get('body', {
-      timeout: 30000
-    })
-      .then(($body) => {
-
-        const desktopLogin =
-          $body.find(
-            'a[aria-label="Click here to Login in application"]:visible'
-          )
-
-        if (desktopLogin.length > 0) {
-
-          // ----------------------------------------------------
-          // DESKTOP HEADER
-          // ----------------------------------------------------
-
-          cy.task(
-            'log',
-            'Desktop LOGIN / REGISTER detected.'
-          )
-
-          cy.wrap(
-            desktopLogin.first()
-          )
-            .click({
-              force: true
-            })
-
-        } else {
-
-          // ----------------------------------------------------
-          // RESPONSIVE HEADER
-          // ----------------------------------------------------
-
-          cy.task(
-            'log',
-            'Responsive header detected. Opening hamburger menu.........'
-          )
-
-          cy.get(
-            '.h_menu_drop_button.moblogo',
-            {
-              timeout: 30000
-            }
-          )
-            .filter(':visible')
-            .should('exist')
-            .find('a')
-            .first()
-            .click({
-              force: true
-            })
-
-
-          cy.task(
-            'log',
-            'Hamburger menu opened.........'
-          )
-
-
-          // ----------------------------------------------------
-          // LOGIN / REGISTER INSIDE RESPONSIVE MENU
-          // ----------------------------------------------------
-
-          cy.contains(
-            'LOGIN / REGISTER',
-            {
-              timeout: 30000
-            }
-          )
-            .filter(':visible')
-            .first()
-            .should('be.visible')
-            .click({
-              force: true
-            })
-
-        }
-
-      })
-
-
-    // ==========================================================
-    // LOGIN FORM
-    // ==========================================================
+    // Open hamburger
+    cy.get('.h_container_sm .h_menu_drop_button')
+      .filter(':visible')
+      .first()
+      .should('be.visible')
+      .click({ force: true })
 
     cy.task(
       'log',
-      'Waiting for login form.........'
+      'Hamburger menu opened.........'
+    )
+
+    // Login button inside opened sidebar
+    cy.contains(
+      'button.search_btn',
+      'LOGIN / REGISTER',
+      {
+        timeout: 30000
+      }
+    )
+      .filter(':visible')
+      .first()
+      .should('be.visible')
+      .click({ force: true })
+
+    cy.task(
+      'log',
+      'LOGIN / REGISTER clicked.........'
     )
 
 
-    // ----------------------------------------------------------
-    // USERNAME
-    // ----------------------------------------------------------
+    // ============================================================
+    // LOGIN FORM
+    // ============================================================
 
     cy.get(
       'input[formcontrolname="userid"], input[placeholder="User Name"]',
@@ -355,17 +137,10 @@ describe('IRCTC TATKAL BOOKING', () => {
       .first()
       .should('be.visible')
       .clear()
-      .type(
-        username,
-        {
-          log: false
-        }
-      )
+      .type(username, {
+        log: false
+      })
 
-
-    // ----------------------------------------------------------
-    // PASSWORD
-    // ----------------------------------------------------------
 
     cy.get(
       'input[formcontrolname="password"], input[placeholder="Password"]',
@@ -377,644 +152,43 @@ describe('IRCTC TATKAL BOOKING', () => {
       .first()
       .should('be.visible')
       .clear()
-      .type(
-        password,
-        {
-          log: false
-        }
-      )
+      .type(password, {
+        log: false
+      })
 
+
+    // ============================================================
+    // CAPTCHA + LOGIN
+    // ============================================================
 
     cy.task(
       'log',
-      'Username and password entered.........'
+      'Solving login captcha.........'
     )
 
+    cy.submitCaptcha().then(() => {
 
-    // ==========================================================
-    // FIRST CAPTCHA + LOGIN
-    // ==========================================================
-
-    cy.submitCaptcha()
-      .then(() => {
-
-        cy.task(
-          'log',
-          'Login completed.........'
-        )
+      cy.task(
+        'log',
+        'Login completed.........'
+      )
 
 
-        // ======================================================
-        // CLOSE LAST TRANSACTION POPUP
-        // ======================================================
+      // ==========================================================
+      // CLOSE LAST TRANSACTION POPUP IF PRESENT
+      // ==========================================================
 
-        cy.get('body')
-          .then(($body) => {
+      cy.get('body').then(($body) => {
 
-            if (
-              $body.text()
-                .includes('Your Last Transaction')
-            ) {
-
-              cy.task(
-                'log',
-                'Last Transaction popup detected.........'
-              )
-
-              cy.contains(
-                'button',
-                /OK|Close/i
-              )
-                .filter(':visible')
-                .first()
-                .click({
-                  force: true
-                })
-
-            }
-
-          })
-
-
-        // ======================================================
-        // PAGE 1
-        // TRAIN SEARCH
-        // ======================================================
-
-        cy.task(
-          'log',
-          `Searching ${SOURCE_STATION} → ${DESTINATION_STATION}`
-        )
-
-
-        // ======================================================
-        // FROM
-        // ======================================================
-
-        cy.get(
-          '#origin input',
-          {
-            timeout: 30000
-          }
-        )
-          .filter(':visible')
-          .first()
-          .should('be.visible')
-          .clear()
-          .type(
-            SOURCE_STATION,
-            {
-              delay: 100
-            }
+        if (
+          $body.text().includes(
+            'Your Last Transaction'
           )
-
-
-        cy.get('body')
-          .find(
-            '[role="option"]:visible, .ui-autocomplete-list-item:visible'
-          )
-          .first()
-          .should('be.visible')
-          .click({
-            force: true
-          })
-
-
-        // ======================================================
-        // TO
-        // ======================================================
-
-        cy.get(
-          '#destination input',
-          {
-            timeout: 30000
-          }
-        )
-          .filter(':visible')
-          .first()
-          .should('be.visible')
-          .clear()
-          .type(
-            DESTINATION_STATION,
-            {
-              delay: 100
-            }
-          )
-
-
-        cy.get('body')
-          .find(
-            '[role="option"]:visible, .ui-autocomplete-list-item:visible'
-          )
-          .first()
-          .should('be.visible')
-          .click({
-            force: true
-          })
-
-
-        // ======================================================
-        // JOURNEY DATE
-        // ======================================================
-
-        cy.get('body')
-          .then(($body) => {
-
-            if (
-              $body.find(
-                '#journeyDate input:visible'
-              ).length > 0
-            ) {
-
-              cy.get(
-                '#journeyDate input'
-              )
-                .filter(':visible')
-                .first()
-                .click()
-                .clear()
-                .type(TRAVEL_DATE)
-
-            } else {
-
-              cy.get(
-                '#jDate input'
-              )
-                .filter(':visible')
-                .first()
-                .click()
-                .clear()
-                .type(TRAVEL_DATE)
-
-            }
-
-          })
-
-
-        cy.task(
-          'log',
-          `Journey date set to ${TRAVEL_DATE}`
-        )
-
-
-        // ======================================================
-        // PAGE 1 CLASS
-        //
-        // MUST REMAIN ALL CLASSES
-        // ======================================================
-
-        cy.get(
-          '#journeyClass',
-          {
-            timeout: 30000
-          }
-        )
-          .filter(':visible')
-          .should('exist')
-
-
-        cy.task(
-          'log',
-          'Page 1 class kept as ALL CLASSES'
-        )
-
-
-        // ======================================================
-        // QUOTA
-        // ======================================================
-
-        if (TATKAL) {
-
-          cy.get(
-            '#journeyQuota',
-            {
-              timeout: 30000
-            }
-          )
-            .filter(':visible')
-            .should('be.visible')
-            .click({
-              force: true
-            })
-
-
-          cy.get(
-            '.ui-dropdown-panel'
-          )
-            .filter(':visible')
-            .contains(
-              '.ui-dropdown-item',
-              'TATKAL'
-            )
-            .click({
-              force: true
-            })
-
-
-          cy.task(
-            'log',
-            'Quota selected: TATKAL'
-          )
-
-        }
-
-
-        if (PREMIUM_TATKAL) {
-
-          cy.get(
-            '#journeyQuota',
-            {
-              timeout: 30000
-            }
-          )
-            .filter(':visible')
-            .should('be.visible')
-            .click({
-              force: true
-            })
-
-
-          cy.get(
-            '.ui-dropdown-panel'
-          )
-            .filter(':visible')
-            .contains(
-              '.ui-dropdown-item',
-              'PREMIUM TATKAL'
-            )
-            .click({
-              force: true
-            })
-
-
-          cy.task(
-            'log',
-            'Quota selected: PREMIUM TATKAL'
-          )
-
-        }
-
-
-        // ======================================================
-        // SEARCH TRAINS
-        // ======================================================
-
-        cy.get(
-          'button.train_Search',
-          {
-            timeout: 30000
-          }
-        )
-          .filter(':visible')
-          .contains('Search Trains')
-          .should('be.visible')
-          .click({
-            force: true
-          })
-
-
-        cy.task(
-          'log',
-          'Train search submitted.........'
-        )
-
-
-        // ======================================================
-        // PAGE 2
-        // WAIT FOR TRAIN
-        // ======================================================
-
-        cy.contains(
-          '.train-heading strong',
-          `GOA EXPRESS (${TRAIN_NO})`,
-          {
-            timeout: 90000
-          }
-        )
-          .should('be.visible')
-
-
-        cy.task(
-          'log',
-          `GOA EXPRESS (${TRAIN_NO}) found.........`
-        )
-
-
-        // ======================================================
-        // FIND TARGET TRAIN CONTAINER
-        // ======================================================
-
-        cy.get(
-          '.bull-back',
-          {
-            timeout: 30000
-          }
-        )
-          .filter((index, element) => {
-
-            const text =
-              Cypress.$(element)
-                .text()
-                .replace(/\s+/g, ' ')
-                .trim()
-
-            return text.includes(
-              `GOA EXPRESS (${TRAIN_NO})`
-            )
-
-          })
-          .first()
-          .as('targetTrain')
-
-
-        cy.get('@targetTrain')
-          .should('exist')
-
-
-        // ======================================================
-        // CLASS PRIORITY
-        //
-        // 1A → 2A → 3A → 3E → SL
-        // ======================================================
-
-        const classPriority = [
-
-          {
-            code: '1A',
-            label: 'AC First Class (1A)'
-          },
-
-          {
-            code: '2A',
-            label: 'AC 2 Tier (2A)'
-          },
-
-          {
-            code: '3A',
-            label: 'AC 3 Tier (3A)'
-          },
-
-          {
-            code: '3E',
-            label: 'AC 3 Economy (3E)'
-          },
-
-          {
-            code: 'SL',
-            label: 'Sleeper (SL)'
-          }
-
-        ]
-
-
-        // ======================================================
-        // CLASS SEARCH FUNCTION
-        // ======================================================
-
-        function selectAvailableClass(index) {
-
-          if (
-            index >= classPriority.length
-          ) {
-
-            throw new Error(
-              `No available class found for train ${TRAIN_NO} on ${TRAVEL_DATE}. Checked: 1A, 2A, 3A, 3E and SL.`
-            )
-
-          }
-
-
-          const currentClass =
-            classPriority[index]
-
-
-          cy.task(
-            'log',
-            `Checking ${currentClass.code} availability.........`
-          )
-
-
-          // ====================================================
-          // SELECT CLASS TAB
-          // ====================================================
-
-          cy.get('@targetTrain')
-            .contains(
-              '.ui-tabmenuitem',
-              currentClass.label,
-              {
-                timeout: 30000
-              }
-            )
-            .filter(':visible')
-            .first()
-            .click({
-              force: true
-            })
-
-
-          // Give IRCTC time to refresh availability
-          cy.wait(1500)
-
-
-          // ====================================================
-          // CHECK TARGET DATE ONLY
-          // ====================================================
-
-          cy.get('@targetTrain')
-            .then(($train) => {
-
-              let matchingDateCard = null
-
-
-              $train
-                .find('.pre-avl')
-                .each((i, element) => {
-
-                  if (matchingDateCard) {
-                    return
-                  }
-
-
-                  const card =
-                    Cypress.$(element)
-
-
-                  const cardText =
-                    normalizeText(
-                      card.text()
-                    )
-
-
-                  // ------------------------------------------------
-                  // DATE MUST MATCH CONFIGURED TRAVEL_DATE
-                  // ------------------------------------------------
-
-                  const dateMatches =
-                    targetDateVariants.some(
-                      (variant) => {
-
-                        return cardText.includes(
-                          normalizeText(variant)
-                        )
-
-                      }
-                    )
-
-
-                  if (!dateMatches) {
-                    return
-                  }
-
-
-                  // ------------------------------------------------
-                  // CHECK AVAILABLE
-                  // ------------------------------------------------
-
-                  const availableText =
-                    card
-                      .find('.AVAILABLE')
-                      .text()
-
-
-                  const isAvailable =
-                    normalizeText(
-                      availableText
-                    )
-                      .includes('AVAILABLE')
-
-
-                  if (isAvailable) {
-
-                    matchingDateCard =
-                      card
-
-                  }
-
-                })
-
-
-              // ==================================================
-              // TARGET DATE + AVAILABLE
-              // ==================================================
-
-              if (matchingDateCard) {
-
-                cy.task(
-                  'log',
-                  `${currentClass.code} AVAILABLE on ${targetDateVariants[0]}`
-                )
-
-
-                cy.wrap(
-                  matchingDateCard
-                )
-                  .should('be.visible')
-                  .click({
-                    force: true
-                  })
-
-
-                // =================================================
-                // BOOK NOW
-                // =================================================
-
-                cy.get('@targetTrain')
-                  .contains(
-                    'button',
-                    'Book Now',
-                    {
-                      timeout: 30000
-                    }
-                  )
-                  .filter(':visible')
-                  .should('be.visible')
-                  .should('not.be.disabled')
-                  .click({
-                    force: true
-                  })
-
-
-                cy.task(
-                  'log',
-                  `BOOK NOW clicked for ${currentClass.code}`
-                )
-
-
-              } else {
-
-                // =================================================
-                // NOT AVAILABLE FOR TARGET DATE
-                // =================================================
-
-                cy.task(
-                  'log',
-                  `${currentClass.code} NOT AVAILABLE on ${targetDateVariants[0]}`
-                )
-
-
-                selectAvailableClass(
-                  index + 1
-                )
-
-              }
-
-            })
-
-        }
-
-
-        // ======================================================
-        // START CLASS SEARCH
-        // ======================================================
-
-        selectAvailableClass(0)
-
-
-        // ======================================================
-        // WAIT FOR PASSENGER PAGE
-        // ======================================================
-
-        cy.get(
-          '.dull-back.train-Header',
-          {
-            timeout: 90000
-          }
-        )
-          .should('be.visible')
-
-
-        cy.task(
-          'log',
-          'Passenger page opened.........'
-        )
-
-
-        // ======================================================
-        // BOARDING STATION
-        // ======================================================
-
-        if (BOARDING_STATION) {
-
-          cy.task(
-            'log',
-            `Selecting boarding station: ${BOARDING_STATION}`
-          )
-
-
-          cy.get(
-            '.ui-dropdown.ui-widget.ui-corner-all'
-          )
-            .filter(':visible')
-            .first()
-            .click({
-              force: true
-            })
-
+        ) {
 
           cy.contains(
-            'li.ui-dropdown-item',
-            BOARDING_STATION
+            'button',
+            /OK|Close/i
           )
             .filter(':visible')
             .first()
@@ -1024,322 +198,805 @@ describe('IRCTC TATKAL BOOKING', () => {
 
         }
 
+      })
 
-        // ======================================================
-        // PASSENGER DETAILS
-        // ======================================================
+
+      // ==========================================================
+      // PAGE 1
+      // TRAIN SEARCH
+      // ==========================================================
+
+      cy.task(
+        'log',
+        `Searching ${SOURCE_STATION} → ${DESTINATION_STATION}`
+      )
+
+
+      // ----------------------------------------------------------
+      // FROM
+      // ----------------------------------------------------------
+
+      cy.get('#origin input', {
+        timeout: 30000
+      })
+        .should('be.visible')
+        .clear()
+        .type(SOURCE_STATION, {
+          delay: 100
+        })
+
+
+      cy.get('body')
+        .find(
+          '[role="option"]:visible, .ui-autocomplete-list-item:visible'
+        )
+        .first()
+        .should('be.visible')
+        .click()
+
+
+      // ----------------------------------------------------------
+      // TO
+      // ----------------------------------------------------------
+
+      cy.get('#destination input', {
+        timeout: 30000
+      })
+        .should('be.visible')
+        .clear()
+        .type(DESTINATION_STATION, {
+          delay: 100
+        })
+
+
+      cy.get('body')
+        .find(
+          '[role="option"]:visible, .ui-autocomplete-list-item:visible'
+        )
+        .first()
+        .should('be.visible')
+        .click()
+
+
+      // ==========================================================
+      // JOURNEY DATE
+      // ==========================================================
+
+      cy.get('body').then(($body) => {
+
+        if (
+          $body.find(
+            '#journeyDate input:visible'
+          ).length
+        ) {
+
+          cy.get('#journeyDate input')
+            .filter(':visible')
+            .first()
+            .click()
+            .clear()
+            .type(TRAVEL_DATE)
+
+        } else {
+
+          cy.get('#jDate input')
+            .filter(':visible')
+            .first()
+            .click()
+            .clear()
+            .type(TRAVEL_DATE)
+
+        }
+
+      })
+
+
+      cy.task(
+        'log',
+        `Journey date selected: ${TRAVEL_DATE}`
+      )
+
+
+      // ==========================================================
+      // CLASS
+      //
+      // IMPORTANT:
+      // PAGE 1 MUST REMAIN ALL CLASSES
+      // ==========================================================
+
+      cy.get('#journeyClass')
+        .should('be.visible')
+
+      cy.task(
+        'log',
+        'Page 1 class kept as ALL CLASSES'
+      )
+
+
+      // ==========================================================
+      // QUOTA
+      // ==========================================================
+
+      if (TATKAL) {
+
+        cy.get('#journeyQuota')
+          .should('be.visible')
+          .click()
+
+        cy.get('.ui-dropdown-panel')
+          .filter(':visible')
+          .contains(
+            '.ui-dropdown-item',
+            'TATKAL'
+          )
+          .click()
+
+        cy.task(
+          'log',
+          'Quota selected: TATKAL'
+        )
+      }
+
+
+      if (PREMIUM_TATKAL) {
+
+        cy.get('#journeyQuota')
+          .should('be.visible')
+          .click()
+
+        cy.get('.ui-dropdown-panel')
+          .filter(':visible')
+          .contains(
+            '.ui-dropdown-item',
+            'PREMIUM TATKAL'
+          )
+          .click()
+
+        cy.task(
+          'log',
+          'Quota selected: PREMIUM TATKAL'
+        )
+      }
+
+
+      // ==========================================================
+      // SEARCH
+      // ==========================================================
+
+      cy.get(
+        'button.train_Search',
+        {
+          timeout: 30000
+        }
+      )
+        .contains('Search Trains')
+        .should('be.visible')
+        .click()
+
+
+      cy.task(
+        'log',
+        'Train search submitted.........'
+      )
+
+
+      // ==========================================================
+      // PAGE 2
+      // FIND GOA EXPRESS
+      // ==========================================================
+
+      cy.contains(
+        '.train-heading strong',
+        `GOA EXPRESS (${TRAIN_NO})`,
+        {
+          timeout: 90000
+        }
+      )
+        .should('be.visible')
+
+
+      // ==========================================================
+      // FIND TARGET TRAIN
+      // ==========================================================
+
+      cy.get('.bull-back', {
+        timeout: 30000
+      })
+        .filter((index, element) => {
+
+          const text = Cypress.$(element)
+            .text()
+            .replace(/\s+/g, ' ')
+            .trim()
+
+          return text.includes(
+            `GOA EXPRESS (${TRAIN_NO})`
+          )
+
+        })
+        .first()
+        .as('targetTrain')
+
+
+      cy.get('@targetTrain')
+        .should('exist')
+
+
+      // ==========================================================
+      // TARGET DATE
+      //
+      // Convert DD/MM/YYYY -> 5 Oct / 05 Oct
+      // ==========================================================
+
+      function getTargetDateVariants(dateString) {
+
+        const parts = dateString.split('/')
+
+        if (parts.length !== 3) {
+          throw new Error(
+            `Invalid TRAVEL_DATE: ${dateString}. Expected DD/MM/YYYY.`
+          )
+        }
+
+        const day = parseInt(parts[0], 10)
+        const month = parseInt(parts[1], 10)
+
+        const months = [
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec'
+        ]
+
+        if (
+          month < 1 ||
+          month > 12 ||
+          Number.isNaN(day)
+        ) {
+          throw new Error(
+            `Invalid TRAVEL_DATE: ${dateString}`
+          )
+        }
+
+        return [
+          `${day} ${months[month - 1]}`,
+          `${String(day).padStart(2, '0')} ${months[month - 1]}`
+        ]
+
+      }
+
+
+      const targetDateVariants =
+        getTargetDateVariants(TRAVEL_DATE)
+
+
+      cy.task(
+        'log',
+        `Target journey date: ${TRAVEL_DATE}`
+      )
+
+      cy.task(
+        'log',
+        `IRCTC date card to select: ${targetDateVariants.join(' / ')}`
+      )
+
+
+      // ==========================================================
+      // CLASS PRIORITY
+      //
+      // 1A → 2A → 3A → 3E → SL
+      // ==========================================================
+
+      const classPriority = [
+
+        {
+          code: '1A',
+          label: 'AC First Class (1A)'
+        },
+
+        {
+          code: '2A',
+          label: 'AC 2 Tier (2A)'
+        },
+
+        {
+          code: '3A',
+          label: 'AC 3 Tier (3A)'
+        },
+
+        {
+          code: '3E',
+          label: 'AC 3 Economy (3E)'
+        },
+
+        {
+          code: 'SL',
+          label: 'Sleeper (SL)'
+        }
+
+      ]
+
+
+      // ==========================================================
+      // FIND AVAILABLE TARGET DATE
+      // ==========================================================
+
+      function findAvailableTargetDate($train) {
+
+        const cards = $train
+          .find('.pre-avl')
+          .filter(':visible')
+
 
         for (
           let i = 0;
-          i < PASSENGER_DETAILS.length;
+          i < cards.length;
           i++
         ) {
 
-          const passenger =
-            PASSENGER_DETAILS[i]
+          const $card =
+            Cypress.$(cards[i])
 
 
-          // ====================================================
-          // ADD PASSENGER
-          // ====================================================
+          const text =
+            $card
+              .text()
+              .replace(/\s+/g, ' ')
+              .trim()
 
-          if (i > 0) {
 
-            cy.get(
-              '.pull-left > a > :nth-child(1)'
+          const dateMatches =
+            targetDateVariants.some(
+              variant =>
+                text.includes(variant)
             )
-              .filter(':visible')
-              .click({
-                force: true
-              })
+
+
+          const available =
+            $card.find('.AVAILABLE').length > 0
+
+
+          if (
+            dateMatches &&
+            available
+          ) {
+
+            return $card
 
           }
 
+        }
 
-          // ====================================================
-          // NAME
-          // ====================================================
+        return null
 
-          cy.get(
-            '.ui-autocomplete input'
-          )
-            .filter(':visible')
-            .eq(i)
-            .clear()
-            .type(
-              passenger.NAME
-            )
+      }
 
 
-          // ====================================================
-          // AGE
-          // ====================================================
+      // ==========================================================
+      // CLASS SELECTION
+      // ==========================================================
 
-          cy.get(
-            'input[formcontrolname="passengerAge"]'
-          )
-            .filter(':visible')
-            .eq(i)
-            .clear()
-            .type(
-              String(passenger.AGE)
-            )
+      function selectAvailableClass(index) {
 
+        if (
+          index >=
+          classPriority.length
+        ) {
 
-          // ====================================================
-          // GENDER
-          // ====================================================
-
-          cy.get(
-            'select[formcontrolname="passengerGender"]'
-          )
-            .filter(':visible')
-            .eq(i)
-            .select(
-              passenger.GENDER
-            )
-
-
-          // ====================================================
-          // BERTH
-          // ====================================================
-
-          cy.get(
-            'select[formcontrolname="passengerBerthChoice"]'
-          )
-            .filter(':visible')
-            .eq(i)
-            .select(
-              passenger.SEAT
-            )
-
-
-          cy.task(
-            'log',
-            `Passenger ${i + 1} details entered.`
+          throw new Error(
+            `No available class found for train ${TRAIN_NO} on ${TRAVEL_DATE}. Checked: 1A, 2A, 3A, 3E and SL.`
           )
 
         }
 
 
-        // ======================================================
-        // FOOD
-        // ======================================================
-
-        cy.get('body')
-          .then(($body) => {
-
-            const foodSelectors =
-              'select[formcontrolname="passengerFoodChoice"]'
+        const currentClass =
+          classPriority[index]
 
 
-            if (
-              $body.find(foodSelectors).length > 0
-            ) {
+        cy.task(
+          'log',
+          `Checking ${currentClass.code} availability.........`
+        )
 
-              PASSENGER_DETAILS.forEach(
-                (passenger, index) => {
 
-                  cy.get(
-                    foodSelectors
-                  )
-                    .filter(':visible')
-                    .eq(index)
-                    .select(
-                      passenger.FOOD
-                    )
+        // --------------------------------------------------------
+        // SELECT CLASS TAB
+        // --------------------------------------------------------
 
-                }
+        cy.get('@targetTrain')
+          .contains(
+            '.ui-tabmenuitem',
+            currentClass.label,
+            {
+              timeout: 30000
+            }
+          )
+          .filter(':visible')
+          .first()
+          .click({
+            force: true
+          })
+
+
+        cy.wait(1500)
+
+
+        // --------------------------------------------------------
+        // CHECK ONLY TARGET DATE
+        // --------------------------------------------------------
+
+        cy.get('@targetTrain')
+          .then(($train) => {
+
+            const targetCard =
+              findAvailableTargetDate(
+                $train
               )
 
+
+            if (targetCard) {
 
               cy.task(
                 'log',
-                'Food preferences selected.........'
+                `${currentClass.code} AVAILABLE on ${TRAVEL_DATE}`
               )
 
-            }
 
-          })
-
-
-        // ======================================================
-        // OPTIONAL BOOKING OPTIONS
-        // ======================================================
-
-        cy.get('body')
-          .then(($body) => {
-
-            const bodyText =
-              $body.text()
-
-
-            if (
-              bodyText.includes(
-                'Book only if confirm berths are allotted'
-              )
-            ) {
-
-              cy.contains(
-                'Book only if confirm berths are allotted'
-              )
-                .filter(':visible')
+              // Click target date card
+              cy.wrap(targetCard)
                 .click({
                   force: true
                 })
 
-            }
 
+              // --------------------------------------------------
+              // BOOK NOW
+              // --------------------------------------------------
 
-            if (
-              bodyText.includes(
-                'Consider for Auto Upgradation.'
-              )
-            ) {
-
-              cy.contains(
-                'Consider for Auto Upgradation.'
-              )
-                .filter(':visible')
-                .click({
-                  force: true
-                })
-
-            }
-
-          })
-
-
-        // ======================================================
-        // UPI PAYMENT OPTION
-        //
-        // Only select payment mode.
-        // DO NOT ENTER PAYMENT / DO NOT PAY.
-        // ======================================================
-
-        cy.get(
-          '#\\32  > .ui-radiobutton > .ui-radiobutton-box'
-        )
-          .filter(':visible')
-          .click({
-            force: true
-          })
-
-
-        cy.task(
-          'log',
-          'UPI payment option selected.........'
-        )
-
-
-        // ======================================================
-        // CONTINUE
-        // ======================================================
-
-        cy.get(
-          '.train_Search'
-        )
-          .filter(':visible')
-          .last()
-          .click({
-            force: true
-          })
-
-
-        cy.task(
-          'log',
-          'Continue clicked.........'
-        )
-
-
-        // ======================================================
-        // FOOD CONFIRMATION POPUP
-        // ======================================================
-
-        cy.get('body')
-          .then(($body) => {
-
-            if (
-              $body.text()
-                .includes(
-                  'Enhance Your Travel with Taste'
+              cy.get('@targetTrain')
+                .contains(
+                  'button',
+                  'Book Now',
+                  {
+                    timeout: 30000
+                  }
                 )
-            ) {
+                .filter(':visible')
+                .should('not.be.disabled')
+                .click({
+                  force: true
+                })
+
 
               cy.task(
                 'log',
-                'Food confirmation popup detected.........'
+                `BOOK NOW clicked for ${currentClass.code}`
               )
 
+
+            } else {
+
+              cy.task(
+                'log',
+                `${currentClass.code} NOT AVAILABLE on ${TRAVEL_DATE}`
+              )
+
+
+              selectAvailableClass(
+                index + 1
+              )
+
+            }
+
+          })
+
+      }
+
+
+      // ==========================================================
+      // START CLASS SEARCH
+      // ==========================================================
+
+      selectAvailableClass(0)
+
+
+      // ==========================================================
+      // PASSENGER PAGE
+      // ==========================================================
+
+      cy.get(
+        '.dull-back.train-Header',
+        {
+          timeout: 90000
+        }
+      )
+        .should('be.visible')
+
+
+      cy.task(
+        'log',
+        'Passenger page opened.........'
+      )
+
+
+      // ==========================================================
+      // BOARDING STATION
+      // ==========================================================
+
+      if (BOARDING_STATION) {
+
+        cy.get(
+          '.ui-dropdown.ui-widget.ui-corner-all'
+        )
+          .filter(':visible')
+          .first()
+          .click()
+
+
+        cy.contains(
+          'li.ui-dropdown-item',
+          BOARDING_STATION
+        )
+          .filter(':visible')
+          .first()
+          .click()
+
+      }
+
+
+      // ==========================================================
+      // PASSENGER DETAILS
+      // ==========================================================
+
+      for (
+        let i = 0;
+        i < PASSENGER_DETAILS.length;
+        i++
+      ) {
+
+        const passenger =
+          PASSENGER_DETAILS[i]
+
+
+        // --------------------------------------------------------
+        // ADD PASSENGER
+        // --------------------------------------------------------
+
+        if (i > 0) {
+
+          cy.get(
+            '.pull-left > a > :nth-child(1)'
+          )
+            .filter(':visible')
+            .click()
+
+        }
+
+
+        // --------------------------------------------------------
+        // NAME
+        // --------------------------------------------------------
+
+        cy.get(
+          '.ui-autocomplete input'
+        )
+          .filter(':visible')
+          .eq(i)
+          .clear()
+          .type(passenger.NAME)
+
+
+        // --------------------------------------------------------
+        // AGE
+        // --------------------------------------------------------
+
+        cy.get(
+          'input[formcontrolname="passengerAge"]'
+        )
+          .filter(':visible')
+          .eq(i)
+          .clear()
+          .type(
+            String(passenger.AGE)
+          )
+
+
+        // --------------------------------------------------------
+        // GENDER
+        // --------------------------------------------------------
+
+        cy.get(
+          'select[formcontrolname="passengerGender"]'
+        )
+          .filter(':visible')
+          .eq(i)
+          .select(
+            passenger.GENDER
+          )
+
+
+        // --------------------------------------------------------
+        // BERTH
+        // --------------------------------------------------------
+
+        cy.get(
+          'select[formcontrolname="passengerBerthChoice"]'
+        )
+          .filter(':visible')
+          .eq(i)
+          .select(
+            passenger.SEAT
+          )
+
+      }
+
+
+      // ==========================================================
+      // FOOD
+      // ==========================================================
+
+      cy.get('body').then(($body) => {
+
+        if (
+          $body.find(
+            'select[formcontrolname="passengerFoodChoice"]'
+          ).length > 0
+        ) {
+
+          PASSENGER_DETAILS.forEach(
+            (passenger, index) => {
 
               cy.get(
-                '[icon="fa fa-close"] > .ui-button-text'
+                'select[formcontrolname="passengerFoodChoice"]'
               )
                 .filter(':visible')
-                .first()
-                .click({
-                  force: true
-                })
+                .eq(index)
+                .select(
+                  passenger.FOOD
+                )
 
             }
+          )
 
-          })
+        }
+
+      })
 
 
-        // ======================================================
-        // SECOND CAPTCHA
-        // ======================================================
+      // ==========================================================
+      // OPTIONAL BOOKING OPTIONS
+      // ==========================================================
+
+      cy.get('body').then(($body) => {
+
+        if (
+          $body.text().includes(
+            'Book only if confirm berths are allotted'
+          )
+        ) {
+
+          cy.contains(
+            'Book only if confirm berths are allotted'
+          )
+            .click({
+              force: true
+            })
+
+        }
+
+
+        if (
+          $body.text().includes(
+            'Consider for Auto Upgradation.'
+          )
+        ) {
+
+          cy.contains(
+            'Consider for Auto Upgradation.'
+          )
+            .click({
+              force: true
+            })
+
+        }
+
+      })
+
+
+      // ==========================================================
+      // UPI PAYMENT OPTION
+      // ==========================================================
+
+      cy.get(
+        '#\\32  > .ui-radiobutton > .ui-radiobutton-box'
+      )
+        .filter(':visible')
+        .click({
+          force: true
+        })
+
+
+      // ==========================================================
+      // CONTINUE
+      // ==========================================================
+
+      cy.get('.train_Search')
+        .filter(':visible')
+        .last()
+        .click({
+          force: true
+        })
+
+
+      // ==========================================================
+      // FOOD CONFIRMATION POPUP
+      // ==========================================================
+
+      cy.get('body').then(($body) => {
+
+        if (
+          $body.text().includes(
+            'Enhance Your Travel with Taste'
+          )
+        ) {
+
+          cy.get(
+            '[icon="fa fa-close"] > .ui-button-text'
+          )
+            .filter(':visible')
+            .first()
+            .click({
+              force: true
+            })
+
+        }
+
+      })
+
+
+      // ==========================================================
+      // SECOND CAPTCHA
+      // ==========================================================
+
+      cy.task(
+        'log',
+        'Solving Second Stage Captcha.........'
+      )
+
+
+      cy.solveCaptcha().then(() => {
 
         cy.task(
           'log',
-          'Solving Second Stage Captcha.........'
+          'Second Stage Captcha solved.........'
         )
 
 
-        cy.solveCaptcha()
-          .then(() => {
+        // ========================================================
+        // STOP BEFORE PAYMENT
+        // ========================================================
 
-            cy.task(
-              'log',
-              'Second Stage Captcha solved.........'
-            )
+        cy.task(
+          'log',
+          'TEST STOP: Payment page reached. Pay & Book NOT clicked.'
+        )
 
-
-            // ==================================================
-            // IMPORTANT SAFETY STOP
-            // ==================================================
-            //
-            // DO NOT CLICK:
-            //
-            // Pay & Book
-            //
-            // DO NOT:
-            //
-            // - enter UPI ID
-            // - wait for payment gateway
-            // - submit payment
-            //
-            // The automation stops here.
-            // ==================================================
-
-            cy.task(
-              'log',
-              'SECOND CAPTCHA COMPLETE.'
-            )
-
-            cy.task(
-              'log',
-              'AUTOMATION STOPPED BEFORE PAY & BOOK.'
-            )
-
-
-            cy.log(
-              'TEST STOPPED BEFORE PAYMENT / FINAL BOOKING'
-            )
-
-          })
+        cy.log(
+          'TEST STOP — Pay & Book intentionally not clicked.'
+        )
 
       })
+
+    })
 
   })
 
